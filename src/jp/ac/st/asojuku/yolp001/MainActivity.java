@@ -3,21 +3,204 @@ package jp.ac.st.asojuku.yolp001;
 import jp.co.yahoo.android.maps.GeoPoint;
 import jp.co.yahoo.android.maps.MapController;
 import jp.co.yahoo.android.maps.MapView;
+import jp.co.yahoo.android.maps.PinOverlay;
+import jp.co.yahoo.android.maps.navi.NaviController;
+import jp.co.yahoo.android.maps.navi.NaviController.NaviControllerListener;
+import jp.co.yahoo.android.maps.routing.RouteOverlay;
+import jp.co.yahoo.android.maps.routing.RouteOverlay.RouteOverlayListener;
 import jp.co.yahoo.android.maps.weather.WeatherOverlay;
 import jp.co.yahoo.android.maps.weather.WeatherOverlay.WeatherOverlayListener;
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Color;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.view.Menu;
+import android.view.MenuItem;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewGroup.LayoutParams;
+import android.widget.TextView;
 
-public class MainActivity extends Activity implements LocationListener, WeatherOverlayListener {
+
+public class MainActivity extends Activity implements LocationListener, WeatherOverlayListener, RouteOverlayListener, NaviControllerListener, MapView.MapTouchListener {
+
+
+	@Override
+	public boolean onLongPress(MapView arg0, Object arg1, PinOverlay arg2, GeoPoint arg3) {
+		// TODO 自動生成されたメソッド・スタブ
+
+		//前回の処理を停止
+		if(mRouteOverlay!=null){
+			mRouteOverlay.cancel();
+		}
+
+		//目的地を設定
+		mGoalPos = arg3;
+
+		//長押しピンをクリア onLongPressが発生すると自動的にピンが追加されるので、ここで削除しておく
+		mMapView.getOverlays().remove(arg2);
+
+		//前回のRouteOverlayを地図から削除
+		mMapView.getOverlays().remove(mRouteOverlay);
+
+		//距離テキストビューを非表示
+		if(mDistLabel!=null){
+			mDistLabel.setVisibility(View.INVISIBLE);
+		}
+
+
+		//RouteOverlay作成
+		//RouteOverlayはYOLPサーバーにアクセスするので、再びアプリケーションIDを設定(地図表示用のMapViewに設定したのと同じでよい)
+				RouteOverlay mRouteOverlay = new RouteOverlay(this,"dj0zaiZpPTdhZ1hERlB4QU01ViZzPWNvbnN1bWVyc2VjcmV0Jng9Mjg-");
+
+				//出発地ピンの吹き出し設定
+				mRouteOverlay.setStartTitle("出発地");
+
+				//目的地ピンの吹き出し設定
+				mRouteOverlay.setGoalTitle("目的地");
+
+				//出発地、目的地、移動手段を設定
+				mRouteOverlay.setRoutePos(mStartPos, mGoalPos, RouteOverlay.TRAFFIC_WALK);
+
+				//RouteOverlayListenerの設定
+				mRouteOverlay.setRouteOverlayListener(this);
+
+				//検索を開始
+				mRouteOverlay.search();
+
+				//MapViewにRouteOverlayを追加
+				mMapView.getOverlays().add(mRouteOverlay);
+
+		return false;
+	}
+
+
+	@Override
+	public boolean onPinchIn(MapView arg0) {
+		// TODO 自動生成されたメソッド・スタブ
+		return false;
+	}
+
+
+	@Override
+	public boolean onPinchOut(MapView arg0) {
+		// TODO 自動生成されたメソッド・スタブ
+		return false;
+	}
+
+
+	@Override
+	public boolean onTouch(MapView arg0, MotionEvent arg1) {
+		// TODO 自動生成されたメソッド・スタブ
+		return false;
+	}
+	private static NaviController naviController = null;
 
 
 
+
+	@Override
+	public boolean onGoal(NaviController arg0) {
+		// TODO 自動生成されたメソッド・スタブ
+        //案内処理を継続しない場合は停止させる
+        naviController.stop();
+		return false;
+	}
+
+
+	@Override
+	public boolean onLocationAccuracyBad(NaviController arg0) {
+		// TODO 自動生成されたメソッド・スタブ
+		return false;
+	}
+
+
+	@Override
+	public boolean onLocationChanged(NaviController arg0) {
+		// TODO 自動生成されたメソッド・スタブ
+		 //目的地までの残りの距離
+        double rema_dist = naviController.getTotalDistance();
+
+        //目的地までの残りの時間
+        double rema_time = naviController.getTotalTime();
+
+        //出発地から目的地までの距離
+        double total_dist = naviController.getDistanceOfRemainder();
+
+        //出発地から目的地までの時間
+        double total_time = naviController.getTimeOfRemainder();
+
+        //現在位置
+        Location location = naviController.getLocation();
+
+		return false;
+	}
+
+	//ルート検索が正常に終了した場合
+		public boolean finishRouteSearch(RouteOverlay arg0) {
+
+
+			//距離テキストビューを表示
+			if(mDistLabel!=null){
+				mDistLabel.setVisibility(View.VISIBLE);
+			}else{
+				//初めてなら、newしてTextViewを画面に動的に作る
+				mDistLabel = new TextView(this);
+				this.addContentView((View)mDistLabel, new ViewGroup.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+
+			}
+
+			//TextViewの文字サイズ、文字色、背景色を設定
+			mDistLabel.setTextSize(20);
+			mDistLabel.setTextColor(Color.argb(255, 255, 255, 255));
+			mDistLabel.setBackgroundColor(Color.argb(127, 0, 0, 0));
+
+			//距離を表示する文言を設定
+			mDistLabel.setText(String.format("距離　%.3fキロメートル", (arg0.getDistance()/1000)));
+
+
+
+		      //NaviControllerを作成しRouteOverlayインスタンスを設定
+		      naviController = new NaviController(this,arg0);
+
+		      //MapViewインスタンスを設定
+		      naviController.setMapView(mMapView);
+
+		      //NaviControllerListenerを設定
+		      naviController.setNaviControlListener(this);
+
+		      //案内処理を開始
+		      naviController.start();
+		  return false;
+		}
+
+
+
+	@Override
+	public boolean onLocationTimeOver(NaviController arg0) {
+		// TODO 自動生成されたメソッド・スタブ
+		return false;
+	}
+
+
+	@Override
+	public boolean onPrepareOptionsMenu(Menu menu){
+
+		return true;
+	}
+
+
+
+	@Override
+	public boolean onRouteOut(NaviController arg0) {
+		// TODO 自動生成されたメソッド・スタブ
+		return false;
+	}
 	//LocationManagerを準備
 	LocationManager mLocationManager = null;
 	//MapView を準備
@@ -29,6 +212,15 @@ public class MainActivity extends Activity implements LocationListener, WeatherO
 
 	//雨雲レーダー表示用のオーバーレイクラス変数を準備
 	WeatherOverlay mWeatherOverlay = null;
+
+	PinOverlay mPinOverlay=null;	//開始位置のピン
+	RouteOverlay mRouteOverlay=null;	//ルート検索Overlay
+	GeoPoint mStartPos;	//出発地(緯度経度)
+	GeoPoint mGoalPos;	//目的地(緯度経度)
+	TextView mDistLabel=null;	//距離表示用テキストビュー
+	static final int MENUITEM_CLEAR = 1;	//メニュー(クリア)
+
+
 
 
 	@Override
@@ -54,6 +246,15 @@ public class MainActivity extends Activity implements LocationListener, WeatherO
 			//今回の緯度経度を覚える
 			this.lastLatitude = latitude;
 			this.lastLongitude = longitude;
+
+			//ここからルート検索処理を追加
+			//LocationManagerで取得した位置にピンを立てる
+			mPinOverlay = new PinOverlay(PinOverlay.PIN_VIOLET);
+			mMapView.getOverlays().add(mPinOverlay);
+			mPinOverlay.addPoint(gp, null);
+
+			//LocationManagerで取得した位置をルート開始位置とします
+			mStartPos = gp;
 
 		}
 
@@ -90,6 +291,7 @@ public class MainActivity extends Activity implements LocationListener, WeatherO
 		// TODO 自動生成されたメソッド・スタブ
 
 	}
+
 
 
 	@Override
@@ -159,6 +361,75 @@ public class MainActivity extends Activity implements LocationListener, WeatherO
 		//MapViewにWeatherOverlayを追加
 		mMapView.getOverlays().add(mWeatherOverlay);
 
+		//ここからルート検索処理を追加
+		//地図上で長押しイベントの発行を許可する
+		mMapView.setLongPress(true);
+
+		//MapTouchListenerを設定
+		mMapView.setMapTouchListener(this);
+
+		//LocationManagerで取得した位置にピンを立てる
+		mPinOverlay = new PinOverlay(PinOverlay.PIN_VIOLET);
+		mMapView.getOverlays().add(mPinOverlay);
+		mPinOverlay.addPoint(gp, null);
+
+		//LocationManagerで取得した位置をルート開始位置とします
+		mStartPos = gp;
+
+		//RouteOverlay作成
+				RouteOverlay routeOverlay = new RouteOverlay(this,"dj0zaiZpPTdhZ1hERlB4QU01ViZzPWNvbnN1bWVyc2VjcmV0Jng9Mjg-");
+
+				//出発地ピンの吹き出し設定
+				routeOverlay.setStartTitle("東京ミッドタウン");
+
+				//目的地ピンの吹き出し設定
+				routeOverlay.setGoalTitle("東京タワー");
+
+				//出発地、目的地、移動手段を設定
+				routeOverlay.setRoutePos(new GeoPoint(35665721,139731005), new GeoPoint(35658630,139745410), RouteOverlay.TRAFFIC_WALK);
+
+				//RouteOverlayListenerの設定
+				routeOverlay.setRouteOverlayListener(this);
+
+				//検索を開始
+				routeOverlay.search();
+
+				//MapViewにRouteOverlayを追加
+				mMapView.getOverlays().add(routeOverlay);
+
+		//出発地ピンを非表示
+		routeOverlay.setStartPinVisible(false);
+
+		//目的地ピンを非表示
+		routeOverlay.setGoalPinVisible(false);
+
+		//経由点ピンを非表示
+		routeOverlay.setRoutePinVisible(false);
+
+
+
+
+	}
+
+
+
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		// TODO 自動生成されたメソッド・スタブ
+		//メニュー選択処理
+		switch(item.getItemId()){
+		case MENUITEM_CLEAR:
+			//地図上からルートと距離表示をクリア
+			if(mMapView!=null){
+				mMapView.getOverlays().remove(mRouteOverlay);
+				mRouteOverlay = null;
+				if(mDistLabel!=null) mDistLabel.setVisibility(View.INVISIBLE);
+			}
+			return true;
+		}
+
+
+		return false;
 	}
 
 
@@ -166,7 +437,21 @@ public class MainActivity extends Activity implements LocationListener, WeatherO
 	public boolean onCreateOptionsMenu(Menu menu) {
 		// Inflate the menu; this adds items to the action bar if it is present.
 		getMenuInflater().inflate(R.menu.main, menu);
+
+		//クリアメニューを追加
+		menu.removeItem(MENUITEM_CLEAR);
+		menu.add(0, MENUITEM_CLEAR, 0, "クリア");
+
 		return true;
 	}
 
+
+	//ルート検索が正常に終了しなかった場合
+	public boolean errorRouteSearch(RouteOverlay arg0, int arg1) {
+	  return false;
+	}
+
+
+
 }
+
